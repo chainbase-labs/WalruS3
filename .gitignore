@@ -7,3 +7,4 @@ s3f_*
 *.test
 *.out
 build/
+.idea/
