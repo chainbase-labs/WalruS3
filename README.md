@@ -9,12 +9,29 @@ A lightweight S3-compatible object storage service using Walrus as the backend s
 - Robust metadata management using PostgreSQL
 - Support for basic S3 operations (PUT, GET, DELETE, LIST)
 
-## Prerequisites
+## Usage
 
-- Go 1.22+
-- PostgreSQL 12+
-- Walrus
+1. Clone the repository:
+
+```
+git clone https://github.com/chainbase-labs/WalruS3.git
+cd WalruS3
+```
+
+2. Start the services:
+
+```
+docker-compose up -d
+```
+
+This will start:
+
+- WalruS3 service on port 9000
 
 ## License
 
-MIT
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.

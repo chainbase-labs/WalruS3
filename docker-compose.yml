@@ -1,0 +1,35 @@
+services:
+  postgres:
+    image: postgres:16.4
+    environment:
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_USER=postgres
+      - POSTGRES_DB=walrus3
+    volumes:
+      - ./postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  walrus3:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    command:
+      - "-pg.host=postgres"
+      - "-pg.port=5432"
+      - "-pg.user=postgres"
+      - "-pg.password=postgres"
+      - "-pg.dbname=walrus3"
+    ports:
+      - "9000:9000"
+
+volumes:
+  postgres_data: 
