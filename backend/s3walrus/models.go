@@ -115,7 +115,7 @@ func (d *DB) DeleteBucket(name string) error {
 func (d *DB) GetObject(bucketName, objectName string) (*Object, error) {
 	var obj Object
 	err := d.db.Where("bucket_name = ? AND object_name = ?", bucketName, objectName).
-		Order("last_modified DESC").
+		Order("created_at DESC").
 		First(&obj).Error
 	return &obj, err
 }
@@ -132,7 +132,7 @@ func (d *DB) DeleteObject(bucketName, objectName string) (*Object, error) {
 	var obj Object
 	err := d.db.Transaction(func(tx *gorm.DB) error {
 		err := tx.Where("bucket_name = ? AND object_name = ?", bucketName, objectName).
-			Order("last_modified DESC").
+			Order("created_at DESC").
 			First(&obj).Error
 		if err != nil {
 			return err
