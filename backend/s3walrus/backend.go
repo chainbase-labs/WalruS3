@@ -24,12 +24,22 @@ func WithEpochs(epochs int) Option {
 	return func(b *Backend) { b.epochs = epochs }
 }
 
+func WithPublisherURL(url string) Option {
+	return func(b *Backend) { b.publisherURL = url }
+}
+
+func WithAggregatorURL(url string) Option {
+	return func(b *Backend) { b.aggregatorURL = url }
+}
+
 // Backend implements the gofakes3.Backend interface using Walrus for storage and Postgres for metadata
 type Backend struct {
-	db         *DB
-	walrus     *walrus_go.Client
-	epochs     int // Number of epochs to store objects for
-	timeSource gofakes3.TimeSource
+	db            *DB
+	timeSource    gofakes3.TimeSource
+	walrus        *walrus_go.Client
+	epochs        int // Number of epochs to store objects for
+	publisherURL  string
+	aggregatorURL string
 }
 
 func New(dsn string, opts ...Option) (*Backend, error) {
@@ -41,11 +51,8 @@ func New(dsn string, opts ...Option) (*Backend, error) {
 		return nil, fmt.Errorf("failed to auto migrate database: %w", err)
 	}
 
-	walrus := walrus_go.NewClient()
-
 	b := &Backend{
-		db:     NewDB(db),
-		walrus: walrus,
+		db: NewDB(db),
 	}
 	for _, opt := range opts {
 		opt(b)
@@ -56,6 +63,17 @@ func New(dsn string, opts ...Option) (*Backend, error) {
 	if b.epochs == 0 {
 		b.epochs = 128
 	}
+
+	var walrusOpts []walrus_go.ClientOption
+	if b.publisherURL != "" {
+		walrusOpts = append(walrusOpts, walrus_go.WithPublisherURLs([]string{b.publisherURL}))
+	}
+	if b.aggregatorURL != "" {
+		walrusOpts = append(walrusOpts, walrus_go.WithAggregatorURLs([]string{b.aggregatorURL}))
+	}
+
+	b.walrus = walrus_go.NewClient(walrusOpts...)
+
 	return b, nil
 }
 
@@ -303,7 +321,20 @@ func (b *Backend) DeleteMulti(bucketName string, objects ...string) (gofakes3.Mu
 
 // CopyObject implements gofakes3.Backend
 func (b *Backend) CopyObject(srcBucket, srcKey, dstBucket, dstKey string, meta map[string]string) (gofakes3.CopyObjectResult, error) {
-	return gofakes3.CopyObject(b, srcBucket, srcKey, dstBucket, dstKey, meta)
+	result, err := gofakes3.CopyObject(b, srcBucket, srcKey, dstBucket, dstKey, meta)
+	if err != nil {
+		return result, err
+	}
+
+	obj, err := b.db.GetObject(dstBucket, dstKey)
+	if err != nil {
+		return gofakes3.CopyObjectResult{}, err
+	}
+
+	return gofakes3.CopyObjectResult{
+		ETag:         `"` + obj.ETag + `"`,
+		LastModified: gofakes3.NewContentTime(obj.CreatedAt),
+	}, nil
 }
 
 // ForceDeleteBucket implements gofakes3.Backend

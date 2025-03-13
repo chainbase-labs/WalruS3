@@ -35,7 +35,9 @@ type fakeS3Flags struct {
 	quiet           bool
 
 	// Walrus configuration
-	epochs int
+	epochs        int
+	publisherURL  string
+	aggregatorURL string
 
 	// Postgres configuration
 	pgHost     string
@@ -68,6 +70,8 @@ func (f *fakeS3Flags) attach(flagSet *flag.FlagSet) {
 
 	// Walrus flags
 	flagSet.IntVar(&f.epochs, "epochs", 128, "Number of epochs to store objects for")
+	flagSet.StringVar(&f.publisherURL, "publisher", "", "Walrus publisher url")
+	flagSet.StringVar(&f.aggregatorURL, "aggregator", "", "Walrus aggregator url")
 
 	// Logging
 	flagSet.BoolVar(&f.quiet, "quiet", false, "Disable logging to stderr")
@@ -147,6 +151,8 @@ func run() error {
 	backend, err := s3walrus.New(dsn,
 		s3walrus.WithTimeSource(timeSource),
 		s3walrus.WithEpochs(values.epochs),
+		s3walrus.WithPublisherURL(values.publisherURL),
+		s3walrus.WithAggregatorURL(values.aggregatorURL),
 	)
 	if err != nil {
 		return err
