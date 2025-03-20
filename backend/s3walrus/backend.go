@@ -221,12 +221,27 @@ func (b *Backend) DeleteObject(bucketName, objectName string) (gofakes3.ObjectDe
 
 // HeadObject implements gofakes3.Backend
 func (b *Backend) HeadObject(bucketName, objectName string) (*gofakes3.Object, error) {
-	obj, err := b.GetObject(bucketName, objectName, nil)
+	obj, err := b.db.GetObject(bucketName, objectName)
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, gofakes3.KeyNotFound(objectName)
+	}
 	if err != nil {
 		return nil, err
 	}
-	obj.Contents = s3io.NoOpReadCloser{}
-	return obj, nil
+	metadata, err := obj.GetMetadata()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get metadata: %w", err)
+	}
+	return &gofakes3.Object{
+		Name:           objectName,
+		Metadata:       metadata,
+		Size:           obj.Size,
+		Contents:       s3io.NoOpReadCloser{},
+		Hash:           []byte(obj.ETag),
+		Range:          nil,
+		VersionID:      gofakes3.VersionID(obj.VersionID),
+		IsDeleteMarker: false,
+	}, nil
 }
 
 // ListBucket implements gofakes3.Backend
