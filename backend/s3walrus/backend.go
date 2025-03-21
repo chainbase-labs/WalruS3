@@ -1,6 +1,7 @@
 package s3walrus
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -117,7 +118,7 @@ func (b *Backend) DeleteBucket(name string) error {
 
 // GetObject implements gofakes3.Backend
 // rangeRequest is not implemented
-func (b *Backend) GetObject(bucketName, objectName string, _ *gofakes3.ObjectRangeRequest) (*gofakes3.Object, error) {
+func (b *Backend) GetObject(bucketName, objectName string, rangeRequest *gofakes3.ObjectRangeRequest) (*gofakes3.Object, error) {
 	obj, err := b.db.GetObject(bucketName, objectName)
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, gofakes3.KeyNotFound(objectName)
@@ -132,6 +133,20 @@ func (b *Backend) GetObject(bucketName, objectName string, _ *gofakes3.ObjectRan
 		return nil, fmt.Errorf("failed to read from walrus: %w", err)
 	}
 
+	data, err := io.ReadAll(reader)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read data from reader: %w", err)
+	}
+
+	rnge, err := rangeRequest.Range(obj.Size)
+	if err != nil {
+		return nil, err
+	}
+
+	if rnge != nil {
+		data = data[rnge.Start : rnge.Start+rnge.Length]
+	}
+
 	metadata, err := obj.GetMetadata()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get metadata: %w", err)
@@ -141,7 +156,7 @@ func (b *Backend) GetObject(bucketName, objectName string, _ *gofakes3.ObjectRan
 		Name:           objectName,
 		Metadata:       metadata,
 		Size:           obj.Size,
-		Contents:       reader,
+		Contents:       s3io.ReaderWithDummyCloser{Reader: bytes.NewReader(data)},
 		Hash:           []byte(obj.ETag),
 		Range:          nil,
 		VersionID:      gofakes3.VersionID(obj.VersionID),
@@ -207,7 +222,7 @@ func (b *Backend) DeleteObject(bucketName, objectName string) (gofakes3.ObjectDe
 		return gofakes3.ObjectDeleteResult{}, gofakes3.BucketNotFound(bucketName)
 	}
 
-	obj, err := b.db.DeleteObject(bucketName, objectName)
+	err = b.db.DeleteObject(bucketName, objectName)
 	if err != nil {
 		return gofakes3.ObjectDeleteResult{}, err
 	}
@@ -215,7 +230,6 @@ func (b *Backend) DeleteObject(bucketName, objectName string) (gofakes3.ObjectDe
 	// Note: We don't delete from Walrus as it handles its own lifecycle
 	return gofakes3.ObjectDeleteResult{
 		IsDeleteMarker: true,
-		VersionID:      gofakes3.VersionID(obj.VersionID),
 	}, nil
 }
 
