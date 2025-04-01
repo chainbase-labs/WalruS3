@@ -69,7 +69,7 @@ func (f *fakeS3Flags) attach(flagSet *flag.FlagSet) {
 	flagSet.StringVar(&f.pgSSLMode, "pg.sslmode", "disable", "PostgreSQL SSL mode")
 
 	// Walrus flags
-	flagSet.IntVar(&f.epochs, "epochs", 128, "Number of epochs to store objects for")
+	flagSet.IntVar(&f.epochs, "epochs", 32, "Number of epochs to store objects for")
 	flagSet.StringVar(&f.publisherURL, "publisher", "", "Walrus publisher url")
 	flagSet.StringVar(&f.aggregatorURL, "aggregator", "", "Walrus aggregator url")
 

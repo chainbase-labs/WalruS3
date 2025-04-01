@@ -62,7 +62,7 @@ func New(dsn string, opts ...Option) (*Backend, error) {
 		b.timeSource = gofakes3.DefaultTimeSource()
 	}
 	if b.epochs == 0 {
-		b.epochs = 128
+		b.epochs = 32
 	}
 
 	var walrusOpts []walrus_go.ClientOption
