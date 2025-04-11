@@ -2,6 +2,8 @@
 
 A lightweight S3-compatible object storage service using Walrus as the backend storage engine and PostgreSQL for metadata management.
 
+https://github.com/user-attachments/assets/45e32a79-ee95-4dfe-a060-f22edb320671
+
 ## Features
 
 - S3 API compatibility
