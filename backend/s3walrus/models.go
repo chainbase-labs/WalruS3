@@ -129,10 +129,16 @@ func (d *DB) CreateObject(obj *Object) error {
 
 // DeleteObject deletes an object
 func (d *DB) DeleteObject(bucketName, objectName string) error {
-	return d.db.Delete(&Object{
-		BucketName: bucketName,
-		ObjectName: objectName,
-	}).Error
+	return d.db.Transaction(func(tx *gorm.DB) error {
+		var obj Object
+		err := tx.Where("bucket_name = ? AND object_name = ?", bucketName, objectName).
+			Order("created_at DESC").
+			First(&obj).Error
+		if err != nil {
+			return err
+		}
+		return tx.Delete(&obj).Error
+	})
 }
 
 // ListObjects lists objects in a bucket with optional prefix and pagination
