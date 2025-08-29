@@ -16,12 +16,40 @@ import (
 
 	"github.com/johannesboyne/gofakes3"
 	"github.com/johannesboyne/gofakes3/backend/s3walrus"
+	"github.com/johannesboyne/gofakes3/migration"
 )
 
 func main() {
-	if err := run(); err != nil {
-		log.Fatal(err)
+	if len(os.Args) < 2 {
+		printUsage()
+		os.Exit(1)
 	}
+
+	command := os.Args[1]
+	switch command {
+	case "server":
+		if err := runServer(); err != nil {
+			log.Fatal(err)
+		}
+	case "migration":
+		if err := runMigration(); err != nil {
+			log.Fatal(err)
+		}
+	default:
+		log.Printf("Unknown command: %s", command)
+		printUsage()
+		os.Exit(1)
+	}
+}
+
+func printUsage() {
+	fmt.Println("Usage: ./main <command> [options]")
+	fmt.Println("")
+	fmt.Println("Commands:")
+	fmt.Println("  server     Start WalruS3 server")
+	fmt.Println("  migration  Run data migration from S3-compatible storage")
+	fmt.Println("")
+	fmt.Println("Use './main <command> -h' for command-specific help")
 }
 
 type fakeS3Flags struct {
@@ -49,6 +77,70 @@ type fakeS3Flags struct {
 
 	debugCPU  string
 	debugHost string
+}
+
+type migrationFlags struct {
+	// Source S3-compatible configuration
+	sourceEndpoint       string
+	sourceRegion         string
+	sourceAccessKey      string
+	sourceSecretKey      string
+	sourceBucket         string
+	sourcePrefix         string
+	sourceUseSSL         bool
+	sourceForcePathStyle bool
+
+	// Destination WalruS3 configuration
+	destEndpoint  string
+	destAccessKey string
+	destSecretKey string
+	destBucket    string
+	destUseSSL    bool
+
+	// Migration options
+	workers      int
+	batchSize    int
+	dryRun       bool
+	maxRetries   int
+	skipExisting bool
+	verbose      bool
+}
+
+func (f *migrationFlags) attach(flagSet *flag.FlagSet) {
+	// Source configuration
+	flagSet.StringVar(&f.sourceEndpoint, "source.endpoint", "", "Source S3 endpoint (e.g., s3.amazonaws.com, storage.googleapis.com)")
+	flagSet.StringVar(&f.sourceRegion, "source.region", "us-east-1", "Source region")
+	flagSet.StringVar(&f.sourceAccessKey, "source.access-key", "", "Source access key (required)")
+	flagSet.StringVar(&f.sourceSecretKey, "source.secret-key", "", "Source secret key (required)")
+	flagSet.StringVar(&f.sourceBucket, "source.bucket", "", "Source bucket name (required)")
+	flagSet.StringVar(&f.sourcePrefix, "source.prefix", "", "Source object prefix filter")
+	flagSet.BoolVar(&f.sourceUseSSL, "source.use-ssl", true, "Use SSL for source connection")
+	flagSet.BoolVar(&f.sourceForcePathStyle, "source.force-path-style", false, "Force path-style URLs for source")
+
+	// Destination configuration
+	flagSet.StringVar(&f.destEndpoint, "dest.endpoint", "http://localhost:9000", "Destination WalruS3 endpoint")
+	flagSet.StringVar(&f.destAccessKey, "dest.access-key", "", "Destination access key (leave empty for anonymous)")
+	flagSet.StringVar(&f.destSecretKey, "dest.secret-key", "", "Destination secret key (leave empty for anonymous)")
+	flagSet.StringVar(&f.destBucket, "dest.bucket", "", "Destination bucket name (default: same as source)")
+	flagSet.BoolVar(&f.destUseSSL, "dest.use-ssl", false, "Use SSL for destination connection")
+
+	// Migration options
+	flagSet.IntVar(&f.workers, "workers", 10, "Number of concurrent workers")
+	flagSet.IntVar(&f.batchSize, "batch-size", 100, "Batch size for listing objects")
+	flagSet.BoolVar(&f.dryRun, "dry-run", false, "Dry run mode (don't actually migrate)")
+	flagSet.IntVar(&f.maxRetries, "max-retries", 3, "Maximum number of retries per object")
+	flagSet.BoolVar(&f.skipExisting, "skip-existing", false, "Skip objects that already exist in destination")
+	flagSet.BoolVar(&f.verbose, "verbose", false, "Verbose logging")
+}
+
+func (f *migrationFlags) validate() error {
+	if f.sourceBucket == "" {
+		return fmt.Errorf("source.bucket is required")
+	}
+	if f.destBucket == "" {
+		f.destBucket = f.sourceBucket
+	}
+	return nil
 }
 
 func (f *fakeS3Flags) attach(flagSet *flag.FlagSet) {
@@ -112,13 +204,13 @@ func debugServer(host string) {
 	}
 }
 
-func run() error {
+func runServer() error {
 	var values fakeS3Flags
 
 	flagSet := flag.NewFlagSet("", 0)
 	values.attach(flagSet)
 
-	if err := flagSet.Parse(os.Args[1:]); err != nil {
+	if err := flagSet.Parse(os.Args[2:]); err != nil {
 		return err
 	}
 
@@ -232,4 +324,57 @@ func (sl *HostList) Set(s string) error {
 		sl.Values = append(sl.Values, part)
 	}
 	return nil
+}
+
+func runMigration() error {
+	var flags migrationFlags
+
+	flagSet := flag.NewFlagSet("migration", flag.ExitOnError)
+	flags.attach(flagSet)
+
+	if err := flagSet.Parse(os.Args[2:]); err != nil {
+		return err
+	}
+
+	if err := flags.validate(); err != nil {
+		return err
+	}
+
+	// Create migration config
+	config := &migration.Config{
+		SourceEndpoint:       flags.sourceEndpoint,
+		SourceRegion:         flags.sourceRegion,
+		SourceAccessKey:      flags.sourceAccessKey,
+		SourceSecretKey:      flags.sourceSecretKey,
+		SourceBucket:         flags.sourceBucket,
+		SourcePrefix:         flags.sourcePrefix,
+		SourceUseSSL:         flags.sourceUseSSL,
+		SourceForcePathStyle: flags.sourceForcePathStyle,
+
+		DestEndpoint:  flags.destEndpoint,
+		DestAccessKey: flags.destAccessKey,
+		DestSecretKey: flags.destSecretKey,
+		DestBucket:    flags.destBucket,
+		DestUseSSL:    flags.destUseSSL,
+
+		Workers:      flags.workers,
+		BatchSize:    flags.batchSize,
+		DryRun:       flags.dryRun,
+		MaxRetries:   flags.maxRetries,
+		SkipExisting: flags.skipExisting,
+		Verbose:      flags.verbose,
+	}
+
+	// Create and run migrator
+	migrator, err := migration.NewMigrator(config)
+	if err != nil {
+		return fmt.Errorf("failed to create migrator: %w", err)
+	}
+	defer migrator.Close()
+
+	log.Printf("Starting migration from %s/%s to %s/%s",
+		flags.sourceEndpoint, flags.sourceBucket,
+		flags.destEndpoint, flags.destBucket)
+
+	return migrator.Run()
 }
