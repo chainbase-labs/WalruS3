@@ -10,14 +10,16 @@ https://github.com/user-attachments/assets/45e32a79-ee95-4dfe-a060-f22edb320671
 - Scalable object storage with Walrus backend
 - Robust metadata management using PostgreSQL
 - Support for basic S3 operations (PUT, GET, DELETE, LIST)
+- Modern browser interface for viewing buckets and files
 - Seamless data migration from S3-compatible storage to Walrus
 
 ## Usage
 
-WalruS3 offers two core functionalities:
+WalruS3 offers three core functionalities:
 
-- API Service: Provides S3-compatible endpoints for object storage operations.
-- Data Migration: Facilitates the transfer of data from other S3-compatible storage services into WalruS3.
+- **API Service**: Provides S3-compatible endpoints for object storage operations
+- **Web UI**: Modern browser interface for viewing buckets and files
+- **Data Migration**: Facilitates the transfer of data from other S3-compatible storage services into WalruS3
 
 Please note: The Data Migration tool requires the API Service to be running.
 
@@ -91,6 +93,13 @@ docker run -d \
   -publisher http://{your-walrus-mainnet-publisher-ip}:{port} \
   -aggregator http://{your-walrus-mainnet-aggregator-ip}:{port}
 ```
+
+### Web UI
+
+**Access the Web UI:**
+The Web UI will be available at the same endpoints as mentioned above. Once the server is running, you can access the modern Web UI by opening your browser and navigating to:
+- **http://localhost:9000** - The server automatically detects browser requests and serves the Web UI
+
 
 ### Data Migration
 

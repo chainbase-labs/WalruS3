@@ -282,7 +282,12 @@ func listenAndServe(addr string, handler http.Handler) error {
 		return err
 	}
 
-	log.Println("using port:", listener.Addr().(*net.TCPAddr).Port)
+	port := listener.Addr().(*net.TCPAddr).Port
+	log.Println("🐋 WalruS3 server starting...")
+	log.Printf("📡 S3 API endpoint: http://localhost:%d", port)
+	log.Printf("🌐 Web UI available at: http://localhost:%d", port)
+	log.Println("🚀 Server is ready to accept connections!")
+
 	server := &http.Server{Addr: addr, Handler: handler}
 
 	return server.Serve(listener)
