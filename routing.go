@@ -1,11 +1,16 @@
 package gofakes3
 
 import (
+	_ "embed"
 	"encoding/base64"
 	"fmt"
 	"net/http"
+	"os"
 	"strings"
 )
+
+//go:embed static/index.html
+var embeddedHTML string
 
 // routeBase is a http.HandlerFunc that dispatches top level routes for
 // GoFakeS3.
@@ -27,6 +32,12 @@ func (g *GoFakeS3) routeBase(w http.ResponseWriter, r *http.Request) {
 		object = ""
 		err    error
 	)
+
+	// Handle static file requests for the web UI
+	if r.Method == "GET" && (path == "" && r.Header.Get("Accept") != "" && strings.Contains(r.Header.Get("Accept"), "text/html")) {
+		g.serveWebUI(w, r)
+		return
+	}
 
 	hdr := w.Header()
 
@@ -185,6 +196,73 @@ func (g *GoFakeS3) routeMultipartUpload(bucket, object string, uploadID UploadID
 	default:
 		return ErrMethodNotAllowed
 	}
+}
+
+// serveWebUI serves the web UI for browsing S3 buckets and objects
+func (g *GoFakeS3) serveWebUI(w http.ResponseWriter, r *http.Request) {
+	var htmlContent []byte
+
+	// First try to use embedded HTML (compiled into binary)
+	if embeddedHTML != "" {
+		htmlContent = []byte(embeddedHTML)
+	} else {
+		// Fallback: try to find the static files directory
+		staticPaths := []string{
+			"static/index.html",
+			"./static/index.html",
+			"../static/index.html",
+		}
+
+		for _, path := range staticPaths {
+			if _, err := os.Stat(path); err == nil {
+				if content, err := os.ReadFile(path); err == nil {
+					htmlContent = content
+					break
+				}
+			}
+		}
+
+		// Last resort: fallback HTML
+		if htmlContent == nil {
+			htmlContent = []byte(getFallbackHTML())
+		}
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+	w.Header().Set("Pragma", "no-cache")
+	w.Header().Set("Expires", "0")
+
+	w.WriteHeader(http.StatusOK)
+	w.Write(htmlContent)
+}
+
+// getFallbackHTML returns a minimal HTML page when embedded content is not available
+func getFallbackHTML() string {
+	return `<!DOCTYPE html>
+			<html>
+			<head>
+				<title>WalruS3 Browser</title>
+				<style>
+					body { font-family: Arial, sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; }
+					.error { background: #f8d7da; color: #721c24; padding: 15px; border-radius: 5px; margin: 20px 0; }
+					.info { background: #d1ecf1; color: #0c5460; padding: 15px; border-radius: 5px; margin: 20px 0; }
+				</style>
+			</head>
+			<body>
+				<h1>🐋 WalruS3 Browser</h1>
+				<div class="error">
+					<strong>Web UI Not Available</strong><br>
+					The embedded Web UI could not be loaded and no static files were found.
+				</div>
+				<div class="info">
+					<strong>S3 API Available</strong><br>
+					You can still use the S3 API endpoints directly:<br>
+					<a href="/">List Buckets (XML)</a>
+				</div>
+				<p>To rebuild with embedded Web UI, ensure static/index.html exists and rebuild the binary.</p>
+			</body>
+			</html>`
 }
 
 func versionFromQuery(qv []string) string {
