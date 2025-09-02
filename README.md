@@ -100,6 +100,14 @@ docker run -d \
 The Web UI will be available at the same endpoints as mentioned above. Once the server is running, you can access the modern Web UI by opening your browser and navigating to:
 - **http://localhost:9000** - The server automatically detects browser requests and serves the Web UI
 
+<div>
+<img src="/static/ui_home.png" width="830" height="500" alt="Home UI">
+</div>
+
+<div>
+<img src="/static/ui_bucket.png" width="830" height="500" alt="Bucket UI">
+</div>
+
 
 ### Data Migration
 
